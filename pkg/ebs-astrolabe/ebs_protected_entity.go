@@ -104,7 +104,26 @@ func (recv EBSProtectedEntity) Snapshot(ctx context.Context, params map[string]m
 }
 
 func (recv EBSProtectedEntity) ListSnapshots(ctx context.Context) ([]astrolabe.ProtectedEntitySnapshotID, error) {
-	panic("implement me")
+	dsi := &ec2.DescribeSnapshotsInput{
+		Filters: []*ec2.Filter{
+			{
+				Name: aws.String("volume-id"),
+				Values: []*string{
+					aws.String(recv.id.GetID()),
+				},
+			},
+		},
+	}
+
+	result, err := recv.petm.ec2.DescribeSnapshots(dsi)
+	if err != nil {
+		return nil, errors.WithMessagef(err,"Failed to list snapshots for %s", recv.id.String())
+	}
+	returnSnapshotIDs := make([]astrolabe.ProtectedEntitySnapshotID, len(result.Snapshots))
+	for curSnapshotNum, curSnapshot := range result.Snapshots {
+		returnSnapshotIDs[curSnapshotNum] = astrolabe.NewProtectedEntitySnapshotID(*curSnapshot.SnapshotId)
+	}
+	return returnSnapshotIDs, nil
 }
 
 func (recv EBSProtectedEntity) DeleteSnapshot(ctx context.Context, snapshotToDelete astrolabe.ProtectedEntitySnapshotID, params map[string]map[string]interface{}) (bool, error) {
