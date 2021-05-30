@@ -107,11 +107,10 @@ func (recv EBSProtectedEntityTypeManager) GetTypeName() string {
 	return "ebs"
 }
 func (recv EBSProtectedEntityTypeManager) GetProtectedEntity(ctx context.Context, id astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntity, error) {
-	panic("implement me")
+	return NewEBSProtectedEntity(id, &recv), nil
 }
 
 func (recv EBSProtectedEntityTypeManager) GetProtectedEntities(ctx context.Context) ([]astrolabe.ProtectedEntityID, error) {
-
 	more := true
 	returnPEIDs := make([]astrolabe.ProtectedEntityID, 0)
 	var nextToken *string
