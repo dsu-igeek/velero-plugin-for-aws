@@ -27,4 +27,21 @@ func TestBasic(t *testing.T) {
 	for curPENum, curEBSPE := range ebsPEs {
 		fmt.Printf("%d: %s\n", curPENum, curEBSPE.String())
 	}
+
+	readTestPEID, err := astrolabe.NewProtectedEntityIDFromString("ebs:vol-01483f0d334439471:snap-0b32a457718a4bad4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	readTestPE, err := testMgr.GetProtectedEntity(context.Background(), readTestPEID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("readTestPE = %v", readTestPE)
+
+	testEBSPE := readTestPE.(EBSProtectedEntity)
+	buffer := make([] byte, testEBSPE.BlockSize())
+	err = testEBSPE.Read(0, 1, buffer)
+	if err != nil {
+		t.Fatal(err)
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ebs"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -11,8 +12,9 @@ import (
 )
 
 type EBSProtectedEntityTypeManager struct {
-	log logrus.FieldLogger
-	ec2 *ec2.EC2
+	logger logrus.FieldLogger
+	ec2    *ec2.EC2
+	ebs    *ebs.EBS
 }
 
 const (
@@ -67,8 +69,9 @@ func NewEBSProtectedEntityTypeManagerVeleroStyle(config map[string]string, log l
 	}
 
 	newPETM := EBSProtectedEntityTypeManager{
-		ec2: ec2.New(sess),
-		log: log,
+		ec2:    ec2.New(sess),
+		ebs:    ebs.New(sess),
+		logger: log,
 	}
 
 	return newPETM, nil
@@ -96,8 +99,9 @@ func NewEBSProtectedEntityTypeManager(params map[string]interface{}, s3Config as
 	}
 
 	newPETM := EBSProtectedEntityTypeManager{
-		ec2: ec2.New(sess),
-		log: logger,
+		ec2:    ec2.New(sess),
+		ebs:    ebs.New(sess),
+		logger: logger,
 	}
 
 	return newPETM, nil
