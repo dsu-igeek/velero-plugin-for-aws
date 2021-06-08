@@ -2,6 +2,7 @@ package ebs_astrolabe
 
 import (
 	"context"
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ebs"
@@ -115,6 +116,7 @@ func (recv EBSProtectedEntityTypeManager) GetProtectedEntity(ctx context.Context
 }
 
 func (recv EBSProtectedEntityTypeManager) GetProtectedEntities(ctx context.Context) ([]astrolabe.ProtectedEntityID, error) {
+	fmt.Println("EBS GetProtectedEntities called")
 	more := true
 	returnPEIDs := make([]astrolabe.ProtectedEntityID, 0)
 	var nextToken *string
@@ -125,10 +127,14 @@ func (recv EBSProtectedEntityTypeManager) GetProtectedEntities(ctx context.Conte
 			MaxResults: &maxResults,
 			NextToken: nextToken,
 		}
+		fmt.Println("Calling DescribeVolumes")
 		dvo, err := recv.ec2.DescribeVolumes(&dvi)
 		if err != nil {
+			fmt.Println("DescribeVolumes failed with err %v", err)
 			return nil, errors.WithMessage(err, "Failed retrieving using DescribeVolumes")
 		}
+		fmt.Printf("Got back %d volumes\n", len(dvo.Volumes))
+
 		nextToken = dvo.NextToken
 		if nextToken == nil {
 			more = false
