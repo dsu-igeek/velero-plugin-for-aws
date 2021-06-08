@@ -195,7 +195,7 @@ func (recv EBSProtectedEntity) GetID() astrolabe.ProtectedEntityID {
 }
 
 func (recv EBSProtectedEntity) GetDataReader(ctx context.Context) (io.ReadCloser, error) {
-	return util.NewReaderForBlockSource(recv, recv.petm.logger), nil
+	return util.NewBlockSourceReader(recv, recv.petm.logger), nil
 }
 
 func (recv EBSProtectedEntity) GetMetadataReader(ctx context.Context) (io.ReadCloser, error) {
@@ -206,15 +206,16 @@ func (recv EBSProtectedEntity) Overwrite(ctx context.Context, sourcePE astrolabe
 	panic("implement me")
 }
 
-func (recv EBSProtectedEntity) Read(startBlock uint64, numBlocks uint64, buffer []byte) error {
+func (recv EBSProtectedEntity) Read(startBlock uint64, numBlocks uint64, buffer []byte) (uint64, error) {
 	if !recv.id.HasSnapshot() {
-		return errors.Errorf("EBSProtectedEntity %s is not a snapshot", recv.id.String())
+		return 0, errors.Errorf("EBSProtectedEntity %s is not a snapshot", recv.id.String())
 	}
+	total := uint64(0)
 	for curBlock:= startBlock; curBlock < startBlock + numBlocks; curBlock++ {
 		curBlockInt64 := int64(curBlock)
 		blockToken, err := recv.getBlockTokenForIndex(curBlockInt64)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		gsbi := ebs.GetSnapshotBlockInput{
 			BlockIndex: &curBlockInt64,
@@ -225,14 +226,15 @@ func (recv EBSProtectedEntity) Read(startBlock uint64, numBlocks uint64, buffer 
 		blockOffset := int(curBlock - startBlock)
 		bufOffset := blockOffset * *recv.blockSize
 		bytesRead, err := io.ReadFull(gsbo.BlockData, buffer[bufOffset:bufOffset + *recv.blockSize])
+		total = total + uint64(bytesRead)
 		if bytesRead != *recv.blockSize {
-			return errors.Errorf("Expected %d bytes, got %d at block #", *recv.blockSize, bytesRead, curBlockInt64)
+			return total, errors.Errorf("Expected %d bytes, got %d at block #", *recv.blockSize, bytesRead, curBlockInt64)
 		}
 		if err != nil {
-			return errors.WithMessagef(err,"Failed at block %d", curBlockInt64 )
+			return total, errors.WithMessagef(err,"Failed at block %d", curBlockInt64 )
 		}
 	}
-	return nil
+	return total, nil
 }
 
 func (recv EBSProtectedEntity) BlockSize() int {
