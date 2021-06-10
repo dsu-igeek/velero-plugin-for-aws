@@ -53,12 +53,40 @@ func (recv EBSProtectedEntity) GetInfo(ctx context.Context) (astrolabe.Protected
 				name = *checkTag.Value
 			}
 		}
+
+		dataS3Transport, err := astrolabe.NewS3DataTransportForPEID(recv.id, recv.petm.s3Config)
+		if err != nil {
+			return nil, errors.Wrap(err, "Could not create S3 data transport")
+		}
+
+		data := []astrolabe.DataTransport{
+			dataS3Transport,
+		}
+
+		mdS3Transport, err := astrolabe.NewS3MDTransportForPEID(recv.id, recv.petm.s3Config)
+		if err != nil {
+			return nil, errors.Wrap(err, "Could not create S3 md transport")
+		}
+
+		md := []astrolabe.DataTransport{
+			mdS3Transport,
+		}
+
+		combinedS3Transport, err := astrolabe.NewS3CombinedTransportForPEID(recv.id, recv.petm.s3Config)
+		if err != nil {
+			return nil, errors.Wrap(err, "Could not create S3 combined transport")
+		}
+
+		combined := []astrolabe.DataTransport{
+			combinedS3Transport,
+		}
+
 		return astrolabe.NewProtectedEntityInfo(recv.id,
 			name,
 			(*dvo.Volumes[0].Size) * 1024 * 1024 * 1024,	// Convert GiB -> bytes
-			nil,
-			nil,
-			nil,
+			data,
+			md,
+			combined,
 			nil), nil
 	}
 }
