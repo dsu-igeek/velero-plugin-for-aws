@@ -16,6 +16,7 @@ type EBSProtectedEntityTypeManager struct {
 	logger logrus.FieldLogger
 	ec2    *ec2.EC2
 	ebs    *ebs.EBS
+	s3Config astrolabe.S3Config
 }
 
 const (
@@ -102,6 +103,7 @@ func NewEBSProtectedEntityTypeManager(params map[string]interface{}, s3Config as
 	newPETM := EBSProtectedEntityTypeManager{
 		ec2:    ec2.New(sess),
 		ebs:    ebs.New(sess),
+		s3Config: s3Config,
 		logger: logger,
 	}
 
