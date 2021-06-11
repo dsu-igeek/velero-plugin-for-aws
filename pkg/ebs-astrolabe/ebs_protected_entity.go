@@ -54,31 +54,9 @@ func (recv EBSProtectedEntity) GetInfo(ctx context.Context) (astrolabe.Protected
 			}
 		}
 
-		dataS3Transport, err := astrolabe.NewS3DataTransportForPEID(recv.id, recv.petm.s3Config)
+		data, md, combined, err := recv.getTransports()
 		if err != nil {
-			return nil, errors.Wrap(err, "Could not create S3 data transport")
-		}
-
-		data := []astrolabe.DataTransport{
-			dataS3Transport,
-		}
-
-		mdS3Transport, err := astrolabe.NewS3MDTransportForPEID(recv.id, recv.petm.s3Config)
-		if err != nil {
-			return nil, errors.Wrap(err, "Could not create S3 md transport")
-		}
-
-		md := []astrolabe.DataTransport{
-			mdS3Transport,
-		}
-
-		combinedS3Transport, err := astrolabe.NewS3CombinedTransportForPEID(recv.id, recv.petm.s3Config)
-		if err != nil {
-			return nil, errors.Wrap(err, "Could not create S3 combined transport")
-		}
-
-		combined := []astrolabe.DataTransport{
-			combinedS3Transport,
+			return nil, err
 		}
 
 		return astrolabe.NewProtectedEntityInfo(recv.id,
@@ -204,14 +182,54 @@ func (recv EBSProtectedEntity) GetInfoForSnapshot(ctx context.Context, snapshotI
 	if err != nil {
 		return nil, errors.WithMessagef(err, "DescribeSnapshots failed for EBS Protected Entity %s", recv.id.String())
 	}
+
+	data, md, combined, err := recv.getTransports()
+
+	if err != nil {
+		return nil, err
+	}
+
+
 	pei  := astrolabe.NewProtectedEntityInfo(recv.id.IDWithSnapshot(snapshotID),
 		*dvo.Snapshots[0].Description,
 		(*dvo.Snapshots[0].VolumeSize) * 1024 * 1024 * 1024,	// Convert GiB -> bytes
-		nil,
-		nil,
-		nil,
+		data,
+		md,
+		combined,
 		nil)
 	return &pei, nil
+}
+
+func (recv EBSProtectedEntity) getTransports() (data, md, combined []astrolabe.DataTransport, err error) {
+	dataS3Transport, err := astrolabe.NewS3DataTransportForPEID(recv.id, recv.petm.s3Config)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "Could not create S3 data transport")
+	}
+
+	data = []astrolabe.DataTransport{
+		dataS3Transport,
+	}
+
+	/*
+	mdS3Transport, err := astrolabe.NewS3MDTransportForPEID(recv.id, recv.petm.s3Config)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "Could not create S3 md transport")
+	}
+*/
+
+	md = []astrolabe.DataTransport{
+		//mdS3Transport,
+	}
+
+	combinedS3Transport, err := astrolabe.NewS3CombinedTransportForPEID(recv.id, recv.petm.s3Config)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "Could not create S3 combined transport")
+	}
+
+	combined = []astrolabe.DataTransport{
+		combinedS3Transport,
+	}
+	return
 }
 
 func (recv EBSProtectedEntity) GetComponents(ctx context.Context) ([]astrolabe.ProtectedEntity, error) {
@@ -254,7 +272,7 @@ func (recv EBSProtectedEntity) Read(startBlock uint64, numBlocks uint64, buffer 
 		blockOffset := int(curBlock - startBlock)
 		bufOffset := blockOffset * *recv.blockSize
 		bytesRead, err := io.ReadFull(gsbo.BlockData, buffer[bufOffset:bufOffset + *recv.blockSize])
-		total = total + uint64(bytesRead)
+		total = total + uint64(bytesRead/(*recv.blockSize))
 		if bytesRead != *recv.blockSize {
 			return total, errors.Errorf("Expected %d bytes, got %d at block #", *recv.blockSize, bytesRead, curBlockInt64)
 		}
