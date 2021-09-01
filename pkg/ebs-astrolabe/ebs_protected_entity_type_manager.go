@@ -132,7 +132,7 @@ func (recv EBSProtectedEntityTypeManager) GetProtectedEntities(ctx context.Conte
 		fmt.Println("Calling DescribeVolumes")
 		dvo, err := recv.ec2.DescribeVolumes(&dvi)
 		if err != nil {
-			fmt.Println("DescribeVolumes failed with err %v", err)
+			fmt.Printf("DescribeVolumes failed with err %v", err)
 			return nil, errors.WithMessage(err, "Failed retrieving using DescribeVolumes")
 		}
 		fmt.Printf("Got back %d volumes\n", len(dvo.Volumes))

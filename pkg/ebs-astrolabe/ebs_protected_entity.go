@@ -1,7 +1,9 @@
 package ebs_astrolabe
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ebs"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -9,6 +11,7 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/util"
 	"io"
+	"io/ioutil"
 	"sync"
 )
 
@@ -37,7 +40,9 @@ func (recv EBSProtectedEntity) GetInfo(ctx context.Context) (astrolabe.Protected
 	if recv.id.HasSnapshot() {
 		// TODO - fix GetInfoForSnapshot API to not return a pointer to ProtectedEntityInfo
 		snapshotInfo, err := recv.GetInfoForSnapshot(ctx, recv.id.GetSnapshotID())
-		// TODO - check for err and don't dereference if err
+		if err != nil {
+			return nil, err
+		}
 		return *snapshotInfo, err
 	} else {
 		dvi := ec2.DescribeVolumesInput{
@@ -210,15 +215,13 @@ func (recv EBSProtectedEntity) getTransports() (data, md, combined []astrolabe.D
 		dataS3Transport,
 	}
 
-	/*
 	mdS3Transport, err := astrolabe.NewS3MDTransportForPEID(recv.id, recv.petm.s3Config)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "Could not create S3 md transport")
 	}
-*/
 
 	md = []astrolabe.DataTransport{
-		//mdS3Transport,
+		mdS3Transport,
 	}
 
 	combinedS3Transport, err := astrolabe.NewS3CombinedTransportForPEID(recv.id, recv.petm.s3Config)
@@ -245,7 +248,15 @@ func (recv EBSProtectedEntity) GetDataReader(ctx context.Context) (io.ReadCloser
 }
 
 func (recv EBSProtectedEntity) GetMetadataReader(ctx context.Context) (io.ReadCloser, error) {
-	return nil, nil
+	dvi := ec2.DescribeVolumesInput{
+		VolumeIds: []*string{aws.String(recv.id.GetID())},
+	}
+	dvo, err := recv.petm.ec2.DescribeVolumes(&dvi)
+	if err != nil {
+		return nil, err
+	}
+	mdBytes, err := json.Marshal(dvo.Volumes[0])
+	return ioutil.NopCloser(bytes.NewReader(mdBytes)), nil
 }
 
 func (recv EBSProtectedEntity) Overwrite(ctx context.Context, sourcePE astrolabe.ProtectedEntity, params map[string]map[string]interface{}, overwriteComponents bool) error {
@@ -263,22 +274,32 @@ func (recv EBSProtectedEntity) Read(startBlock uint64, numBlocks uint64, buffer 
 		if err != nil {
 			return 0, err
 		}
-		gsbi := ebs.GetSnapshotBlockInput{
-			BlockIndex: &curBlockInt64,
-			BlockToken: blockToken,
-			SnapshotId: aws.String(recv.id.GetSnapshotID().String()),
-		}
-		gsbo, err := recv.petm.ebs.GetSnapshotBlock(&gsbi)
 		blockOffset := int(curBlock - startBlock)
 		bufOffset := blockOffset * *recv.blockSize
-		bytesRead, err := io.ReadFull(gsbo.BlockData, buffer[bufOffset:bufOffset + *recv.blockSize])
-		total = total + uint64(bytesRead/(*recv.blockSize))
-		if bytesRead != *recv.blockSize {
-			return total, errors.Errorf("Expected %d bytes, got %d at block #", *recv.blockSize, bytesRead, curBlockInt64)
+		if blockToken != nil {
+			gsbi := ebs.GetSnapshotBlockInput{
+				BlockIndex: &curBlockInt64,
+				BlockToken: blockToken,
+				SnapshotId: aws.String(recv.id.GetSnapshotID().String()),
+			}
+			gsbo, err := recv.petm.ebs.GetSnapshotBlock(&gsbi)
+
+			bytesRead, err := io.ReadFull(gsbo.BlockData, buffer[bufOffset:bufOffset+*recv.blockSize])
+			total += uint64(bytesRead/(*recv.blockSize))
+			if bytesRead != *recv.blockSize {
+				return total, errors.Errorf("Expected %d bytes, got %d at block #%d", *recv.blockSize, bytesRead, curBlockInt64)
+			}
+			if err != nil {
+				return total, errors.WithMessagef(err, "Failed at block %d", curBlockInt64)
+			}
+		} else {
+			// The block doesn't exist in the snapshot, fill in zeros
+			for zeroByteOffset := bufOffset; zeroByteOffset < bufOffset+*recv.blockSize; zeroByteOffset ++ {
+				buffer[zeroByteOffset] = 0
+			}
+			total++
 		}
-		if err != nil {
-			return total, errors.WithMessagef(err,"Failed at block %d", curBlockInt64 )
-		}
+
 	}
 	return total, nil
 }
@@ -305,9 +326,27 @@ func (recv EBSProtectedEntity) loadBlockInfoStartingAt(blockIndex int64) error {
 		return errors.WithMessagef(err, "Could not get block token for index %d for EBS Protected Entity %s", blockIndex, recv.id.String())
 	}
 	*recv.blockSize = int(*lsbo.BlockSize)
-	for _, curBlock := range lsbo.Blocks {
-		(*recv.blockInfoCache)[*curBlock.BlockIndex] = *curBlock
+	//lastBlockPossible := recv.Capacity() / int64(*recv.blockSize)
+	// It is possible for blocks in the snapshot to exist.  We will return zero's for them on read and we insert
+	// zeroBlock records here to let us know on the read side that the block is not in the snapshot
+	zeroBlockIndex := int64(-1)
+	zeroBlock := ebs.Block{
+		BlockIndex: &zeroBlockIndex,
+		BlockToken: nil,
 	}
+	expectedStartIndex := blockIndex
+	for _, curBlock := range lsbo.Blocks {
+		// Detect a skip in the range of blocks
+		if *curBlock.BlockIndex > expectedStartIndex {
+			// Fill in the zero blocks in the gap
+			for ; *curBlock.BlockIndex > expectedStartIndex; expectedStartIndex++ {
+				(*recv.blockInfoCache)[expectedStartIndex] = zeroBlock
+			}
+		}
+		(*recv.blockInfoCache)[*curBlock.BlockIndex] = *curBlock
+		expectedStartIndex ++
+	}
+	// TODO Deal with missing blocks at the end
 	return nil
 }
 func (recv EBSProtectedEntity) getBlockTokenForIndex(blockIndex int64) (*string, error) {
