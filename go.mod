@@ -8,7 +8,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
-	github.com/vmware-tanzu/astrolabe v0.0.0-00010101000000-000000000000
+	github.com/vmware-tanzu/astrolabe v0.4.0
 	github.com/vmware-tanzu/velero v1.7.1
 	k8s.io/api v0.22.4
 	k8s.io/apimachinery v0.22.4
