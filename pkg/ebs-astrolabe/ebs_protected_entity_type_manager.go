@@ -13,9 +13,9 @@ import (
 )
 
 type EBSProtectedEntityTypeManager struct {
-	logger logrus.FieldLogger
-	ec2    *ec2.EC2
-	ebs    *ebs.EBS
+	logger   logrus.FieldLogger
+	ec2      *ec2.EC2
+	ebs      *ebs.EBS
 	s3Config astrolabe.S3Config
 }
 
@@ -52,9 +52,9 @@ func getSession(options session.Options) (*session.Session, error) {
 func NewEBSProtectedEntityTypeManagerVeleroStyle(config map[string]string, log logrus.FieldLogger) (astrolabe.ProtectedEntityTypeManager, error) {
 
 	/*
-	if err := veleroplugin.ValidateVolumeSnapshotterConfigKeys(config, regionKey, credentialProfileKey); err != nil {
-	return err
-	}
+		if err := veleroplugin.ValidateVolumeSnapshotterConfigKeys(config, regionKey, credentialProfileKey); err != nil {
+		return err
+		}
 	*/
 	region := config[regionKey]
 	credentialProfile := config[credentialProfileKey]
@@ -101,10 +101,10 @@ func NewEBSProtectedEntityTypeManager(params map[string]interface{}, s3Config as
 	}
 
 	newPETM := EBSProtectedEntityTypeManager{
-		ec2:    ec2.New(sess),
-		ebs:    ebs.New(sess),
+		ec2:      ec2.New(sess),
+		ebs:      ebs.New(sess),
 		s3Config: s3Config,
-		logger: logger,
+		logger:   logger,
 	}
 
 	return newPETM, nil
@@ -125,9 +125,9 @@ func (recv EBSProtectedEntityTypeManager) GetProtectedEntities(ctx context.Conte
 	for more {
 		var maxResults int64
 		maxResults = 1000
-		dvi := ec2.DescribeVolumesInput {
+		dvi := ec2.DescribeVolumesInput{
 			MaxResults: &maxResults,
-			NextToken: nextToken,
+			NextToken:  nextToken,
 		}
 		fmt.Println("Calling DescribeVolumes")
 		dvo, err := recv.ec2.DescribeVolumes(&dvi)
@@ -158,5 +158,10 @@ func (recv EBSProtectedEntityTypeManager) CopyFromInfo(ctx context.Context, info
 }
 
 func (recv EBSProtectedEntityTypeManager) Delete(ctx context.Context, id astrolabe.ProtectedEntityID) error {
+	panic("implement me")
+}
+
+func (recv EBSProtectedEntityTypeManager) GetCapabilities() map[string]string {
+	//TODO implement me
 	panic("implement me")
 }
