@@ -66,7 +66,7 @@ func (recv EBSProtectedEntity) GetInfo(ctx context.Context) (astrolabe.Protected
 
 		return astrolabe.NewProtectedEntityInfo(recv.id,
 			name,
-			(*dvo.Volumes[0].Size) * 1024 * 1024 * 1024,	// Convert GiB -> bytes
+			(*dvo.Volumes[0].Size)*1024*1024*1024, // Convert GiB -> bytes
 			data,
 			md,
 			combined,
@@ -194,10 +194,9 @@ func (recv EBSProtectedEntity) GetInfoForSnapshot(ctx context.Context, snapshotI
 		return nil, err
 	}
 
-
-	pei  := astrolabe.NewProtectedEntityInfo(recv.id.IDWithSnapshot(snapshotID),
+	pei := astrolabe.NewProtectedEntityInfo(recv.id.IDWithSnapshot(snapshotID),
 		*dvo.Snapshots[0].Description,
-		(*dvo.Snapshots[0].VolumeSize) * 1024 * 1024 * 1024,	// Convert GiB -> bytes
+		(*dvo.Snapshots[0].VolumeSize)*1024*1024*1024, // Convert GiB -> bytes
 		data,
 		md,
 		combined,
@@ -263,12 +262,12 @@ func (recv EBSProtectedEntity) Overwrite(ctx context.Context, sourcePE astrolabe
 	panic("implement me")
 }
 
-func (recv EBSProtectedEntity) Read(startBlock uint64, numBlocks uint64, buffer []byte) (uint64, error) {
+func (recv EBSProtectedEntity) ReadAt(startBlock uint64, numBlocks uint64, buffer []byte) (uint64, error) {
 	if !recv.id.HasSnapshot() {
 		return 0, errors.Errorf("EBSProtectedEntity %s is not a snapshot", recv.id.String())
 	}
 	total := uint64(0)
-	for curBlock:= startBlock; curBlock < startBlock + numBlocks; curBlock++ {
+	for curBlock := startBlock; curBlock < startBlock+numBlocks; curBlock++ {
 		curBlockInt64 := int64(curBlock)
 		blockToken, err := recv.getBlockTokenForIndex(curBlockInt64)
 		if err != nil {
@@ -285,7 +284,7 @@ func (recv EBSProtectedEntity) Read(startBlock uint64, numBlocks uint64, buffer 
 			gsbo, err := recv.petm.ebs.GetSnapshotBlock(&gsbi)
 
 			bytesRead, err := io.ReadFull(gsbo.BlockData, buffer[bufOffset:bufOffset+*recv.blockSize])
-			total += uint64(bytesRead/(*recv.blockSize))
+			total += uint64(bytesRead / (*recv.blockSize))
 			if bytesRead != *recv.blockSize {
 				return total, errors.Errorf("Expected %d bytes, got %d at block #%d", *recv.blockSize, bytesRead, curBlockInt64)
 			}
@@ -294,7 +293,7 @@ func (recv EBSProtectedEntity) Read(startBlock uint64, numBlocks uint64, buffer 
 			}
 		} else {
 			// The block doesn't exist in the snapshot, fill in zeros
-			for zeroByteOffset := bufOffset; zeroByteOffset < bufOffset+*recv.blockSize; zeroByteOffset ++ {
+			for zeroByteOffset := bufOffset; zeroByteOffset < bufOffset+*recv.blockSize; zeroByteOffset++ {
 				buffer[zeroByteOffset] = 0
 			}
 			total++
@@ -344,7 +343,7 @@ func (recv EBSProtectedEntity) loadBlockInfoStartingAt(blockIndex int64) error {
 			}
 		}
 		(*recv.blockInfoCache)[*curBlock.BlockIndex] = *curBlock
-		expectedStartIndex ++
+		expectedStartIndex++
 	}
 	// TODO Deal with missing blocks at the end
 	return nil
